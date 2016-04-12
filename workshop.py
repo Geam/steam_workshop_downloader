@@ -36,11 +36,11 @@ def read_plugin (output_dir, plugins_id_list):
         print(e.reason)
     else:
         json_response = json.loads(response.read().decode('utf8'))
-        temp = json_response['response']['publishedfiledetails'][0];
         for plugin in json_response['response']['publishedfiledetails']:
-            print("Downloading " + plugin['publishedfileid'])
-            path = os.path.join(output_dir, temp['publishedfileid'] + ".vpk")
+            print("Downloading " + plugin['publishedfileid'] + ".vpk")
+            path = os.path.join(output_dir, plugin['publishedfileid'] + ".vpk")
             urllib.request.urlretrieve(plugin['file_url'], path)
+            print("Downloading complete")
 
 def read_collection (collections_id_list):
     data = const_data['collection']

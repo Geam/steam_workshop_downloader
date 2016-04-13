@@ -1,7 +1,8 @@
-# steam_workshop_downloader
-Steam workshop content downloader
+# Steam Workshop Content Downloader
+Little script for downloading plugins from steam workshop for server that do not
+support natively the workshop like left4dead2 server.
 
-# How to use
+## How to use
 Download the script and run it with the collection(s) id as arg. Note that it
 will also download the content of the linked collection.
 
@@ -16,6 +17,11 @@ Run the script with as many collection_id as you want
 ```bash
 ./workshop.py <collection_1_id> <collection_2_id> ... <collection_n_id>
 ```
+
+### Add only a plugin
+No, you can't and I don't want to implement it. Create a collection, your
+players will thank you if you have more than one plugin. If you only have one
+plugin, one day you will use many so create a collection.
 
 ### Update plugins
 Just run the script
@@ -80,4 +86,4 @@ Will download all plugins from 313949717 and 313949718 collections
 ```
 
 # Tags
-steam workshop plugin download
+steam workshop plugin collection download

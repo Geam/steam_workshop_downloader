@@ -14,3 +14,6 @@ will also download the content of the linked collection.
 ```bash
 ./workshop.py -o /path/to/l4d2/addons/workshop 313949717
 ```
+
+# Tags
+steam workshop plugin download

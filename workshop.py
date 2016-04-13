@@ -6,6 +6,7 @@ import os
 import urllib.request, urllib.parse, urllib
 from urllib.error import HTTPError, URLError
 import json
+import time
 
 def usage(cmd, exit):
     print ("usge: " + cmd + "[-o <output_dir>] [<collection_id]... <collection_id>")
@@ -20,7 +21,25 @@ const_data = {
         'collection' : {'collectioncount' : 0, 'publishedfileids[0]' : 0}
         }
 
-def read_plugin (output_dir, plugins_id_list):
+def download_plugins (output_dir, plugins):
+    fail = []
+    error = 0
+    for plugin in plugins:
+        if 'file_url' in plugin:
+            try:
+                print("Downloading " + plugin['publishedfileid'] + ".vpk")
+                path = os.path.join(output_dir, plugin['publishedfileid'] + ".vpk")
+                urllib.request.urlretrieve(plugin['file_url'], path)
+                print("Downloading complete")
+                error += 1
+            except HTTPError as e:
+                print("Server return " + str(e.code) + " error on " + plugin['publishedfileid'] + " plugin")
+                fail.append(plugin)
+    return error, fail
+
+def get_plugins_info (plugins_id_list):
+    json_response = []
+    error = None
     data = const_data['file']
     data['itemcount'] = len(plugins_id_list)
     for idx, plugin_id in enumerate(plugins_id_list):
@@ -29,20 +48,20 @@ def read_plugin (output_dir, plugins_id_list):
     try:
         response = urllib.request.urlopen(const_urls['file'], encode_data)
     except HTTPError as e:
-        print("The server can't fullfill the request")
-        print(e.code)
+        print("Server return " + str(e.code) + " error")
+        error = e
     except URLError as e:
-        print("Can't reach server")
-        print(e.reason)
+        print("Can't reach server: " + e.reason)
+        error = e
     else:
         json_response = json.loads(response.read().decode('utf8'))
-        for plugin in json_response['response']['publishedfiledetails']:
-            print("Downloading " + plugin['publishedfileid'] + ".vpk")
-            path = os.path.join(output_dir, plugin['publishedfileid'] + ".vpk")
-            urllib.request.urlretrieve(plugin['file_url'], path)
-            print("Downloading complete")
+        json_response = json_response['response']['publishedfiledetails']
+    return error, json_response
 
-def read_collection (collections_id_list):
+def get_plugins_id_from_collections_list (collections_id_list):
+    sub_collection = []
+    plugins_id_list = []
+    error = None
     data = const_data['collection']
     data['collectioncount'] = len(collections_id_list)
     for idx, collection_id in enumerate(collections_id_list):
@@ -51,15 +70,13 @@ def read_collection (collections_id_list):
     try:
         response = urllib.request.urlopen(const_urls['collection'], encode_data)
     except HTTPError as e:
-        print("The server can't fullfill the request")
-        print(e.code)
+        print("Server return " + str(e.code) + " error")
+        error = e
     except URLError as e:
-        print("Can't reach server")
-        print(e.reason)
+        print("Can't reach server: " + e.reason)
+        error = e
     else:
         json_response = json.loads(response.read().decode('utf-8'))
-        sub_collection = []
-        plugins_id_list = []
         for collection in json_response['response']['collectiondetails']:
             if 'children' in collection:
                 for item in collection['children']:
@@ -70,10 +87,13 @@ def read_collection (collections_id_list):
                     else:
                         print("Unrecognised filetype: " + str(item['filetype']))
         if len(sub_collection) > 0:
-            plugins_id_list += read_collection(sub_collection)
-        return plugins_id_list
+            error, plugins_id_list_temp = get_plugins_id_from_collections_list(sub_collection)
+            if error == None:
+                plugins_id_list += plugins_id_list_temp
+    return error, plugins_id_list
 
 def main(argv):
+    sleep = 15
     output_dir = os.getcwd()
     if len(argv) == 1:
         usage(argv[0], 0)
@@ -90,8 +110,15 @@ def main(argv):
         print(output_dir + ": path doesn't exist\nEnd of program")
         sys.exit(1)
     collections_id_list = argv[len(opts) * 2 + 1:]
-    plugins_id_list = read_collection(collections_id_list)
-    read_plugin(output_dir, plugins_id_list)
+    error, plugins_id_list = get_plugins_id_from_collections_list(collections_id_list)
+    if error == None:
+        error, plugins_info = get_plugins_info(plugins_id_list)
+    if error == None:
+        while len(plugins_info) > 0:
+            error, plugins_info = download_plugins(output_dir, plugins_info)
+            if error > 0:
+                print("Some download fail, retrying in " + str(sleep) + " seconds")
+                time.sleep(sleep)
 
 if __name__ == "__main__":
     main(sys.argv)

@@ -32,12 +32,15 @@ Note that each time the script is call, the plugins will be updated if needed.
 If you already have the plugins download, the script will redownload everything
 the first time.
 
+### Remove addons
+Just remove unwanted addons from the Steam collection side. The script will
+automatically sync the changes locally.
+
 ### Remove collection
 Edit the addons.lst file :
     - remove the collection_id you don't want anymore
     - don't bother removing the plugins from the file, this part is
         re-generated each time the script is run.
-You still need to remove manually the plugin (.vpk) file.
 
 ## Save file
 The save file name addons.lst is write in json and has the following form :

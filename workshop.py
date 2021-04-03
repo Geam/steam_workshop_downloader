@@ -1,30 +1,32 @@
 #!/usr/bin/python3
 
-import sys,getopt
-import os
-
-import urllib.request, urllib.parse, urllib
-from urllib.error import HTTPError, URLError
+import getopt
 import json
+import os
+import sys
 import time
+import urllib
+import urllib.parse
+import urllib.request
+from urllib.error import HTTPError, URLError
+
 
 def usage(cmd, exit):
-    print ("usge: " + cmd + "[-o <output_dir>] [<collection_id>]..." \
-            "<collection_id>")
+    print("usage: " + cmd + "[-o <output_dir>] [<collection_id>]...<collection_id>")
     sys.exit(exit)
 
-const_urls = {
-        'file' : "http://api.steampowered.com/ISteamRemoteStorage/" \
-                "GetPublishedFileDetails/v1",
-        'collection' : "http://api.steampowered.com/ISteamRemoteStorage/" \
-                "GetCollectionDetails/v0001"
-        }
-const_data = {
-        'file' : {'itemcount' : 0, 'publishedfileids[0]' : 0},
-        'collection' : {'collectioncount' : 0, 'publishedfileids[0]' : 0}
-        }
 
-def download_plugins (output_dir, plugins, old_plugins):
+const_urls = {
+    'file': "http://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1",
+    'collection': "http://api.steampowered.com/ISteamRemoteStorage/GetCollectionDetails/v0001"
+}
+const_data = {
+    'file': {'itemcount': 0, 'publishedfileids[0]': 0},
+    'collection': {'collectioncount': 0, 'publishedfileids[0]': 0}
+}
+
+
+def download_plugins(output_dir, plugins, old_plugins):
     """Download only plugin that are not up-to-date or never downloaded
     Will return:
         - the number of error uncounter
@@ -40,35 +42,50 @@ def download_plugins (output_dir, plugins, old_plugins):
         if 'file_url' in plugin:
             # if plugin is downloadable
             if plugin['publishedfileid'] in old_plugins and \
-            old_plugins[plugin['publishedfileid']]['time_updated'] == \
-            plugin['time_updated']:
+                    old_plugins[plugin['publishedfileid']]['time_updated'] == plugin['time_updated']:
                 # if plugin is already up-to-date just reccord as succeed
-                print("Plugin " + plugin['publishedfileid'] + \
-                        " already up-to-date")
-                succeed[plugin['publishedfileid']] = dict((k,plugin[k]) \
-                    for k in ('title', 'time_updated') \
-                    if k in plugin)
+                print("Plugin " + plugin['publishedfileid'] + " already up-to-date")
+                succeed[plugin['publishedfileid']] = dict(
+                    (k, plugin[k]) for k in ('title', 'time_updated') if k in plugin)
             else:
-                # if plugin not up-to-date or never download
+                # if plugin is not up-to-date or not downloaded
                 try:
                     name = plugin['publishedfileid'] + ".vpk"
                     print("Downloading " + name)
                     path = os.path.join(output_dir, name)
                     urllib.request.urlretrieve(plugin['file_url'], path)
                     print("Downloading complete")
-                    succeed[plugin['publishedfileid']] = dict((k,plugin[k]) \
-                        for k in ('title', 'time_updated') \
-                        if k in plugin)
+                    succeed[plugin['publishedfileid']] = dict(
+                        (k, plugin[k]) for k in ('title', 'time_updated') if k in plugin)
                 except HTTPError as e:
                     # some time the request fail, too much spam ?
-                    print("Server return " + str(e.code) + " error on " + \
-                        plugin['publishedfileid'] + " plugin")
+                    print("Server return " + str(e.code) + " error on " + plugin['publishedfileid'] + " plugin")
                     fail.append(plugin)
                     error += 1
     return error, fail, succeed
 
-def get_plugins_info (plugins_id_list):
-    """Ask api the info on each plugin(s)
+
+def remove_old_plugins(output_dir, plugins, old_plugins):
+    """Removes the old plugins from disk.
+     The old plugins are present in the old list, but not in the new one.
+    """
+    old_plugin_ids = list(old_plugins.keys())
+    new_plugin_ids = [plugin['publishedfileid'] for plugin in plugins]
+    removed_plugin_ids = list(set(old_plugin_ids) - set(new_plugin_ids))
+
+    if len(removed_plugin_ids) > 0:
+        print("Removing old plugins:", removed_plugin_ids)
+
+    for plugin_id in removed_plugin_ids:
+        old_vpk = os.path.join(output_dir, plugin_id + ".vpk")
+        try:
+            os.remove(old_vpk)
+        except OSError as e:  # if failed, report it back to the user ##
+            print("Error: %s - %s." % (e.filename, e.strerror))
+
+
+def get_plugins_info(plugins_id_list):
+    """Ask api the info on each plugin
     Will return:
         - error:
             - None if no error encounter
@@ -96,7 +113,8 @@ def get_plugins_info (plugins_id_list):
         json_response = json_response['response']['publishedfiledetails']
     return error, json_response
 
-def get_plugins_id_from_collections_list (collections_id_list):
+
+def get_plugins_id_from_collections_list(collections_id_list):
     """Ask the steam api for every plugin in the collection(s) and
     subcollection(s)
     Will return:
@@ -132,18 +150,19 @@ def get_plugins_id_from_collections_list (collections_id_list):
                 # if collection is a valid one
                 valid_collections.append(collection['publishedfileid'])
                 for item in collection['children']:
-                    if item['filetype'] == 0:   # children is a plugin
+                    if item['filetype'] == 0:  # children is a plugin
                         plugins_id_list.append(item['publishedfileid'])
-                    elif item['filetype'] == 2: # childre is a collection
+                    elif item['filetype'] == 2:  # childre is a collection
                         sub_collection.append(item['publishedfileid'])
-                    else:                       # unknown type
+                    else:  # unknown type
                         print("Unrecognised filetype: " + str(item['filetype']))
         if len(sub_collection) > 0:
             error, plugins_id_list_temp, o = \
                 get_plugins_id_from_collections_list(sub_collection)
-            if error == None:
+            if error is None:
                 plugins_id_list += plugins_id_list_temp
     return error, plugins_id_list, valid_collections
+
 
 def load_saved_data(save_file):
     """Return the saved data
@@ -181,13 +200,13 @@ def init(argv):
         print("No save file found")
         usage(argv[0], 0)
     try:
-        opts, args = getopt.getopt(argv[1:],"ho:")
+        opts, args = getopt.getopt(argv[1:], "ho:")
     except getopt.GetoptError:
-        usge(argv[0], 2)
+        usage(argv[0], 2)
     else:
         for opt, arg in opts:
             if opt == 'h':
-                usge(argv[0], 0)
+                usage(argv[0], 0)
             elif opt == '-o':
                 output_dir = os.path.abspath(arg)
                 save_file = os.path.join(output_dir, "addons.lst")
@@ -196,6 +215,7 @@ def init(argv):
             error += 1
         collections_id_list = argv[len(opts) * 2 + 1:]
     return error, output_dir, collections_id_list, save_file
+
 
 def main(argv):
     sleep = 15
@@ -213,17 +233,24 @@ def main(argv):
             error = 1
     if error == 0:
         error, plugins_id_list, valid_collections = get_plugins_id_from_collections_list(collections_id_list)
-    if error == None:
+    if error is None:
         saved_data['collections'] = valid_collections
         if 'plugins' in saved_data:
             old_plugins = saved_data['plugins']
-            plugins_id_list += old_plugins.keys()
-            plugins_id_list = list(set(plugins_id_list))
+            #############################################################
+            # Don't keep the old plugins because we want to delete them #
+            #############################################################
+            # plugins_id_list += old_plugins.keys()
+            # plugins_id_list = list(set(plugins_id_list))
         else:
             old_plugins = dict()
         saved_data['plugins'] = dict()
         error, plugins_info = get_plugins_info(plugins_id_list)
-    if error == None:
+
+    if error is None:
+        # Remove old plugins that are not in new plugins
+        remove_old_plugins(output_dir, plugins_info, old_plugins)
+
         while len(plugins_info) > 0:
             error, plugins_info, succeed_temp = download_plugins(output_dir, plugins_info, old_plugins)
             saved_data['plugins'].update(succeed_temp)
@@ -233,6 +260,7 @@ def main(argv):
             if error > 0:
                 print("Some download failed, retrying in " + str(sleep) + " seconds")
                 time.sleep(sleep)
+
 
 if __name__ == "__main__":
     main(sys.argv)
